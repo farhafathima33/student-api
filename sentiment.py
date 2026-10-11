@@ -1,9 +1,9 @@
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
-
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from transformers import pipeline
 
 app = FastAPI()
 
@@ -17,19 +17,23 @@ app.add_middleware(
 class SentimentRequest(BaseModel):
     sentences: List[str]
 
-analyzer = SentimentIntensityAnalyzer()
+# Three-class sentiment model
+classifier = pipeline(
+    "text-classification",
+    model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+    tokenizer="cardiffnlp/twitter-roberta-base-sentiment-latest"
+)
 
 def analyze_sentiment(sentence: str) -> str:
-    scores = analyzer.polarity_scores(sentence)
-    compound = scores["compound"]
+    result = classifier(sentence, truncation=True)[0]
+    label = result["label"].lower()
 
-    if compound > 0:
+    if label == "positive":
         return "happy"
-    elif compound < 0:
+    elif label == "negative":
         return "sad"
     else:
         return "neutral"
-
 
 @app.post("/sentiment")
 async def batch_sentiment(request: SentimentRequest):
@@ -41,7 +45,3 @@ async def batch_sentiment(request: SentimentRequest):
         for sentence in request.sentences
     ]
     return {"results": results}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

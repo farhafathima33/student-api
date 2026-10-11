@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
 app = FastAPI()
 
 app.add_middleware(
@@ -15,75 +17,18 @@ app.add_middleware(
 class SentimentRequest(BaseModel):
     sentences: List[str]
 
-
-
-import re
+analyzer = SentimentIntensityAnalyzer()
 
 def analyze_sentiment(sentence: str) -> str:
-    text = sentence.lower()
-    words = re.findall(r"\b[\w']+\b", text)
+    scores = analyzer.polarity_scores(sentence)
+    compound = scores["compound"]
 
-    happy_words = {
-        "love", "happy", "great", "excellent", "wonderful",
-        "amazing", "good", "fantastic", "awesome", "enjoy",
-        "like", "best", "beautiful", "perfect", "pleased",
-        "delighted", "excited", "brilliant", "helpful",
-        "success", "successful", "recommend", "impressive",
-        "glad", "joy", "joyful", "superb", "nice", "positive",
-        "satisfied", "thankful", "grateful", "outstanding"
-    }
-
-    sad_words = {
-        "sad", "terrible", "bad", "hate", "awful",
-        "disappointed", "angry", "worst", "horrible", "upset",
-        "poor", "boring", "useless", "failed", "failure",
-        "annoying", "dislike", "unhappy", "painful", "negative",
-        "regret", "frustrated", "disgusting", "waste", "broken",
-        "problem", "difficult", "wrong", "ugly", "miserable",
-        "disaster", "annoyed", "sadly", "pathetic", "inferior"
-    }
-
-    negations = {
-        "not", "never", "no", "isn't", "wasn't",
-        "don't", "doesn't", "didn't", "can't", "couldn't",
-        "won't", "wouldn't", "hardly"
-    }
-
-    happy_score = 0
-    sad_score = 0
-    negate_next = False
-
-    for word in words:
-        if word in negations:
-            negate_next = True
-            continue
-
-        if word in happy_words:
-            if negate_next:
-                sad_score += 1
-            else:
-                happy_score += 1
-            negate_next = False
-
-        elif word in sad_words:
-            if negate_next:
-                happy_score += 1
-            else:
-                sad_score += 1
-            negate_next = False
-
-        elif word in {".", "!", "?", ",", ";"}:
-            negate_next = False
-
-        elif negate_next:
-            # Limit negation to the next word.
-            negate_next = False
-
-    if happy_score > sad_score:
+    if compound > 0:
         return "happy"
-    if sad_score > happy_score:
+    elif compound < 0:
         return "sad"
-    return "neutral"
+    else:
+        return "neutral"
 
 
 @app.post("/sentiment")
